@@ -1,5 +1,6 @@
 package cn.enaium.sysinfomonitor
 
+import cn.enaium.imgui.ImFontConfig
 import cn.enaium.imgui.ImGui
 import cn.enaium.imgui.backends.sdl.ImGuiSdlBackend
 import cn.enaium.imgui.backends.sdl.ImGuiSdlRendererBackend
@@ -37,6 +38,15 @@ fun runSystemMonitor(
     refreshHz: Int = 2,
     uiHz: Int = 15,
     processRefreshEvery: Int = 16,
+    /**
+     * UI scale factor driven by the host's display DPI (1.0 = 160 dpi
+     * baseline, 2.0 = 320 dpi, etc.). Applied as `io.FontGlobalScale`
+     * so the default font renders larger and `CalcTextSize` honors
+     * the new metrics; also forwarded to the UI so the few hardcoded
+     * plot heights grow with it. Defaults to 1.0f on platforms that
+     * don't set the `SYSINFO_DPI_SCALE` env var (desktop / JVM).
+     */
+    dpiScale: Float = 1.0f,
 ) {
     SDL.setMainReady()
     if (!SDL.init(SDLInitFlags.VIDEO or SDLInitFlags.EVENTS)) {
@@ -48,13 +58,22 @@ fun runSystemMonitor(
         }
     }
     println("SDL ${SDL.version()} (${SDL.revision()}) driver=${SDL.getCurrentVideoDriver()}")
-    println("Config: data refresh=$refreshHz Hz, UI rebuild up to $uiHz Hz, vsync=PRESENTVSYNC, full refresh every $processRefreshEvery data refreshes")
+    println("Config: data refresh=$refreshHz Hz, UI rebuild up to $uiHz Hz, vsync=PRESENTVSYNC, full refresh every $processRefreshEvery data refreshes, dpi scale=$dpiScale")
 
     SDL.createWindow(
         title = "SysInfoMonitor",
         width = width,
         height = height,
-        flags = SDLWindowFlags.RESIZABLE,
+        // HIGH_PIXEL_DENSITY (`SDL_WINDOW_ALLOW_HIGHDPI`) makes the
+        // SDL renderer create a backing buffer at the device pixel
+        // size (e.g. 2560x1440 on a Retina 1280x720 window). The
+        // imgi-kmp SDL backend then reports
+        // `io.displaySize` = window logical size and
+        // `io.displayFramebufferScale` = sizeInPixels / size, which is
+        // the correct high-DPI contract: ImGui lays out in logical
+        // units and the renderer projects them onto the physical
+        // framesuffer.
+        flags = SDLWindowFlags.RESIZABLE or SDLWindowFlags.HIGH_PIXEL_DENSITY,
     ).use { window ->
         SDL.createRenderer(window, flags = SDLRendererFlags.PRESENTVSYNC).use { renderer ->
             val context = ImGui.createContext()
@@ -63,8 +82,25 @@ fun runSystemMonitor(
                 val backend = ImGuiSdlRendererBackend(renderer)
                 platform.init()
 
+                // Rasterize the embedded default font (ProggyClean) via
+                // ImFontConfig so it stays crisp on high-DPI displays:
+                //   - sizePixels     = 13f * dpiScale (readability: 39px on
+                //     Android's 480dpi/3.0, 13px on desktop where dpiScale
+                //     defaults to 1.0)
+                //   - rasterizerDensity = the display's framebuffer scale
+                //     (1.0 on Android, 2.0 on a Retina), so the atlas is
+                //     baked at `sizePixels * density` physical pixels while
+                //     the logical metrics stay [sizePixels]. No TTF file
+                //     needed: the font comes from imgui's embedded data.
+                val fbScale = (window.sizeInPixels.x.toFloat() / window.size.x.toFloat())
+                    .coerceAtLeast(1f)
                 val fonts = ImGui.getIO().fonts
-                fonts.addFontDefault()
+                fonts.addFontDefault(
+                    ImFontConfig(
+                        sizePixels = 13f * dpiScale,
+                        rasterizerDensity = fbScale,
+                    ),
+                )
                 check(fonts.build()) { "font atlas build failed" }
                 val texData = fonts.getTexDataAsRGBA32()
                 val fontTextureId = backend.uploadFontTexture(texData.pixels, texData.width, texData.height)
@@ -74,7 +110,7 @@ fun runSystemMonitor(
                 ImPlot.setImGuiContext(context)
 
                 val manager = SnapshotManager(processRefreshEvery = processRefreshEvery)
-                val ui = SystemMonitorUi()
+                val ui = SystemMonitorUi(dpiScale = dpiScale)
                 ui.setFontTextureId(fontTextureId)
                 ui.setFullscreen(fullscreen)
 
@@ -155,6 +191,20 @@ fun runSystemMonitor(
 
                     if (needRebuild) {
                         platform.newFrame()
+                        // `ImGuiSdlBackend.newFrame()` sets
+                        // `io.displaySize = window.size` (logical window
+                        // size) and `io.displayFramebufferScale` from
+                        // `sizeInPixels / size`. Both are left unmodified:
+                        // SDL reports mouse/wheel events in `window.size`
+                        // coordinates on every platform, so the imgui
+                        // layout must live in that same logical space for
+                        // the cursor to stay aligned with widget rects
+                        // under `HIGH_PIXEL_DENSITY`. The renderer backend
+                        // independently projects those logical coords onto
+                        // the physical framebuffer via its own
+                        // `outputSize / displaySize` scale. A prior attempt
+                        // set `displaySize` = `sizeInPixels`, which shrank
+                        // the whole UI to 1/scale and misaligned the mouse.
                         ui.draw(snapshot!!)
                         ImGui.render()
                         lastUiTick = nowTick

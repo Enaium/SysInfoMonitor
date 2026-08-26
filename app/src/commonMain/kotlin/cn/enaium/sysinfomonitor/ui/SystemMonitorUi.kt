@@ -37,12 +37,24 @@ import cn.enaium.sysinfomonitor.formatUptime
  * ImGui + ImPlot UI for the system monitor. Owns its own UI state (selected
  * tab, sort spec, search filter) and the time-series ring buffer.
  */
-class SystemMonitorUi {
+class SystemMonitorUi(
+    /**
+     * UI scale factor (1.0 = baseline). Matches the value forwarded to
+     * `ImGui.getIO().fontGlobalScale` in `Main.kt` and is used here to
+     * multiply the few hardcoded pixel sizes (plot heights, paddings)
+     * so they grow alongside the scaled text on high-DPI displays.
+     */
+    private val dpiScale: Float = 1.0f,
+) {
 
     private val history = MetricsHistory(capacity = 240)
-
     // ============= UI state =============
     private var section: Section = Section.OVERVIEW
+    // Tracks the last section that was actually rendered into the
+    // scroll child. Used in drawContents to reset the scroll offset
+    // when the user switches tabs; see drawContents.
+    private var lastDrawnSection: Section? = null
+
 
     private var processFilter: String = ""
     private var processSortColumn: Int = 2 // by CPU% by default
@@ -66,6 +78,8 @@ class SystemMonitorUi {
 
     // Lazily built scratch buffer to avoid per-frame allocation.
     private val plotScratch = FloatArray(history.capacity)
+    /** Helper: scale a hardcoded pixel size by [dpiScale] (clamped >= 1f). */
+    private fun px(v: Float): Float = v * dpiScale.coerceAtLeast(1f)
 
     fun setFontTextureId(id: Long) {
         fontTextureId = id
@@ -134,17 +148,65 @@ class SystemMonitorUi {
     private fun drawContents(snapshot: SystemSnapshot) {
         drawSettingsBar(snapshot)
         drawTabBar()
-        when (section) {
-            Section.OVERVIEW -> drawOverview(snapshot)
-            Section.CPU -> drawCpu(snapshot)
-            Section.MEMORY -> drawMemory(snapshot)
-            Section.PROCESSES -> drawProcesses(snapshot)
-            Section.DISKS -> drawDisks(snapshot)
-            Section.NETWORK -> drawNetwork(snapshot)
-            Section.SENSORS -> drawSensors(snapshot)
-            Section.USERS -> drawUsers(snapshot)
-            Section.SYSTEM -> drawSystem(snapshot)
+        // The tab body is wrapped in a child window so each tab scrolls
+        // independently of the tab bar / settings bar above. `ImVec2(0, 0)`
+        // tells ImGui to size the child to whatever content region is
+        // left under the tab bar. No `ALWAYS_VERTICAL_SCROLLBAR` flag:
+        // the bar appears only when the tab's content actually overflows
+        // the child's height, so short tabs render bar-less. The scroll
+        // position is reset when the user switches tabs.
+        if (lastDrawnSection != section) {
+            ImGui.setNextWindowScroll(ImVec2(0f, 0f))
+            lastDrawnSection = section
         }
+        if (ImGui.beginChild(
+                id = "##section-scroll",
+                size = ImVec2(0f, 0f),
+                childFlags = 0,
+                windowFlags = 0,
+            )) {
+            // Touch / drag-to-scroll: on Android, SDL synthesizes mouse
+            // events from touch (SDL_HINT_TOUCH_MOUSE_EVENTS defaults to
+            // 1), but a finger drag never produces SDL_EVENT_MOUSE_WHEEL,
+            // so ImGui's normal wheel-based scrolling does nothing.
+            // Detect a held left mouse button + non-zero drag delta and
+            // translate the Y delta into a `setScrollY` call on the
+            // child. `getMouseDragDelta` returns the cumulative delta
+            // since the press; we read+reset it every frame to get a
+            // per-frame delta. No-op when the child isn't scrollable
+            // (getScrollMaxY() == 0) or nothing is being dragged.
+            handleTouchScroll()
+            when (section) {
+                Section.OVERVIEW -> drawOverview(snapshot)
+                Section.CPU -> drawCpu(snapshot)
+                Section.MEMORY -> drawMemory(snapshot)
+                Section.PROCESSES -> drawProcesses(snapshot)
+                Section.DISKS -> drawDisks(snapshot)
+                Section.NETWORK -> drawNetwork(snapshot)
+                Section.SENSORS -> drawSensors(snapshot)
+                Section.USERS -> drawUsers(snapshot)
+                Section.SYSTEM -> drawSystem(snapshot)
+            }
+        }
+        ImGui.endChild()
+    }
+
+    /**
+     * When the left mouse button is being dragged inside the current
+     * child window, translate the per-frame drag delta into a scroll
+     * offset. Lets touch users scroll a tab by dragging vertically.
+     * Must be called while the target child window is the active
+     * imgui window (i.e. after `beginChild` returned true).
+     */
+    private fun handleTouchScroll() {
+        if (ImGui.getScrollMaxY() <= 0f) return
+        if (!ImGui.isMouseDragging(0, -1f)) return
+        val delta = ImGui.getMouseDragDelta(0, -1f)
+        if (delta.y == 0f) return
+        val currentY = ImGui.getScrollY()
+        val maxY = ImGui.getScrollMaxY()
+        ImGui.setScrollY((currentY - delta.y).coerceIn(0f, maxY))
+        ImGui.resetMouseDragDelta(0)
     }
 
     // ============= Sections =============
@@ -185,10 +247,7 @@ class SystemMonitorUi {
         headline("Processes", snapshot.processes.size.toString())
         ImGui.columns(1)
         ImGui.spacing()
-        ImGui.separator()
-        ImGui.spacing()
-
-        if (ImPlot.beginPlot("CPU / Memory", ImVec2(-1f, 220f), ImPlotFlags.NONE)) {
+        if (ImPlot.beginPlot("CPU / Memory", ImVec2(-1f, px(220f)), ImPlotFlags.NONE)) {
             ImPlot.setupAxes("sample", "%", ImPlotFlags.NONE, ImPlotFlags.NONE)
             ImPlot.setupAxisLimits(ImPlotAxis.X1, 0.0, history.capacity.toDouble(), ImPlotCond.ALWAYS)
             ImPlot.setupAxisLimits(ImPlotAxis.Y1, 0.0, 100.0, ImPlotCond.ALWAYS)
@@ -201,7 +260,7 @@ class SystemMonitorUi {
             ImPlot.endPlot()
         }
 
-        if (ImPlot.beginPlot("Network throughput (bytes/s)", ImVec2(-1f, 220f), ImPlotFlags.NONE)) {
+        if (ImPlot.beginPlot("Network throughput (bytes/s)", ImVec2(-1f, px(220f)), ImPlotFlags.NONE)) {
             ImPlot.setupAxes("sample", "B/s", ImPlotFlags.NONE, ImPlotFlags.NONE)
             ImPlot.setupAxisLimits(ImPlotAxis.X1, 0.0, history.capacity.toDouble(), ImPlotCond.ALWAYS)
             val maxNet = (history.netRxBytesPerSec.max() + history.netTxBytesPerSec.max()).coerceAtLeast(1f)
@@ -213,7 +272,7 @@ class SystemMonitorUi {
             ImPlot.endPlot()
         }
 
-        if (ImPlot.beginPlot("Disk throughput (bytes/s)", ImVec2(-1f, 220f), ImPlotFlags.NONE)) {
+        if (ImPlot.beginPlot("Disk throughput (bytes/s)", ImVec2(-1f, px(220f)), ImPlotFlags.NONE)) {
             ImPlot.setupAxes("sample", "B/s", ImPlotFlags.NONE, ImPlotFlags.NONE)
             ImPlot.setupAxisLimits(ImPlotAxis.X1, 0.0, history.capacity.toDouble(), ImPlotCond.ALWAYS)
             val maxDisk = (history.diskReadBytesPerSec.max() + history.diskWriteBytesPerSec.max()).coerceAtLeast(1f)
@@ -234,7 +293,7 @@ class SystemMonitorUi {
         ImGui.text("Min CPU update interval: ${snapshot.minimumCpuUpdateIntervalMs} ms")
         ImGui.separator()
 
-        if (ImPlot.beginPlot("Per-core CPU usage (%)", ImVec2(-1f, 260f))) {
+        if (ImPlot.beginPlot("Per-core CPU usage (%)", ImVec2(-1f, px(260f)))) {
             ImPlot.setupAxes("core", "%", ImPlotFlags.NONE, ImPlotFlags.NONE)
             ImPlot.setupAxisLimits(ImPlotAxis.Y1, 0.0, 100.0, ImPlotCond.ALWAYS)
             val xs = FloatArray(snapshot.cpus.size) { it.toFloat() }
@@ -285,7 +344,7 @@ class SystemMonitorUi {
         ImGui.separator()
         ImGui.text("Open files limit: ${snapshot.openFilesLimit?.toString() ?: "-"}")
 
-        if (ImPlot.beginPlot("Memory & Swap (%)", ImVec2(-1f, 220f))) {
+        if (ImPlot.beginPlot("Memory & Swap (%)", ImVec2(-1f, px(220f)))) {
             ImPlot.setupAxes("sample", "%", ImPlotFlags.NONE, ImPlotFlags.NONE)
             ImPlot.setupAxisLimits(ImPlotAxis.X1, 0.0, history.capacity.toDouble(), ImPlotCond.ALWAYS)
             ImPlot.setupAxisLimits(ImPlotAxis.Y1, 0.0, 100.0, ImPlotCond.ALWAYS)
@@ -500,7 +559,7 @@ class SystemMonitorUi {
 
         val labels = snapshot.components.map { it.label }
         val temps = snapshot.components.map { it.temperatureCelsius ?: 0f }
-        if (ImPlot.beginPlot("Temperatures (°C)", ImVec2(-1f, 220f))) {
+        if (ImPlot.beginPlot("Temperatures (°C)", ImVec2(-1f, px(220f)))) {
             ImPlot.setupAxes("sensor", "°C", ImPlotFlags.NONE, ImPlotFlags.NONE)
             val xs = FloatArray(labels.size) { it.toFloat() }
             ImPlot.plotBars("Temp", xs, temps.toFloatArray(), 0.6, ImPlotSpec())
