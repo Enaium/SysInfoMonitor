@@ -95,28 +95,36 @@ private fun appendTrimmed(sb: StringBuilder, value: Double, fracDigits: Int) {
     val v = if (neg) -value else value
     val intPart = v.toLong()
     val frac = v - intPart.toDouble()
-    if (neg) sb.append('-')
-    sb.append(intPart)
-    if (fracDigits <= 0) return
-    sb.append('.')
+    if (fracDigits <= 0) {
+        if (neg) sb.append('-')
+        sb.append(intPart)
+        return
+    }
     var scale = 1.0
     repeat(fracDigits) { scale *= 10.0 }
     val rounded = (frac * scale + 0.5).toLong()
     if (rounded >= scale.toLong()) {
-        val drop = 1 + fracDigits
-        sb.setLength(sb.length - drop)
+        // Fractional part rounded up to a whole unit (e.g. 0.999 -> 1.000).
+        if (neg) sb.append('-')
         sb.append(intPart + 1)
         return
     }
+    if (neg) sb.append('-')
+    sb.append(intPart)
+    if (rounded == 0L) {
+        // Integer value with no fractional part: omit the dot. The previous
+        // version appended the dot first and then tried to remove 1+fracDigits
+        // chars, which made setLength(-1) throw StringIndexOutOfBoundsException
+        // for any value whose integer part had no fractional digits
+        // (e.g. 1.0, 8.0 GiB).
+        return
+    }
+    sb.append('.')
     var s = rounded.toString()
     while (s.length < fracDigits) s = "0$s"
     var end = s.length
     while (end > 0 && s[end - 1] == '0') end--
-    if (end == 0) {
-        sb.setLength(sb.length - 1 - fracDigits)
-    } else {
-        sb.append(s, 0, end)
-    }
+    sb.append(s, 0, end)
 }
 
 private fun trimZeros(s: String): String =

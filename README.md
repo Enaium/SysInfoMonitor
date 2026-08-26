@@ -3,7 +3,7 @@
 A cross-platform system monitor written in Kotlin Multiplatform, with a
 real-time desktop UI rendered through Dear ImGui + ImPlot on top of SDL3.
 
-![](https://img.cdn1.vip/i/6a8d224bd5941_1787634251.webp)
+![](https://img.cdn1.vip/i/6a8ed7b1109ce_1787746225.webp)
 
 The application pulls system data from the [sysinfo] Rust crate (via
 [sysinfo-kmp]), draws a custom dashboard with [imgui-kmp], and uses
