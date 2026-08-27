@@ -19,7 +19,15 @@ fun konanAndroidLibDir(abi: String): String? {
         "x86" -> "i686-linux-android"
         else -> return null
     }
-    return "$toolchain/sysroot/usr/lib/$triple/26"
+    // The per-ABI NDK stub libraries (libEGL, libGLESv2, libaaudio, ...)
+    // live under an API-level subdirectory (e.g. `26`) that differs
+    // across toolchain versions/layouts, so scan for the directory that
+    // actually contains libaaudio.so instead of assuming a fixed path.
+    val abiLib = File(toolchain, "sysroot/usr/lib/$triple")
+    val candidate = abiLib.listFiles()
+        ?.filter { it.isDirectory && File(it, "libaaudio.so").exists() }
+        ?.maxByOrNull { it.name.toIntOrNull() ?: 0 }
+    return candidate?.absolutePath
 }
 
 plugins {
@@ -53,7 +61,12 @@ kotlin {
     }
 
     mingwX64 {
-        binaries.executable()
+        binaries.executable {
+            // sdl-kmp's hidapi backend references HidD_*/HidP_* symbols on
+            // Windows; the mingw toolchain ships these in libhid/libsetupapi
+            // but sdl-kmp doesn't declare them, so link them explicitly.
+            linkerOpts("-lhid", "-lsetupapi")
+        }
     }
 
     // Android native targets build libmain.so with an exported SDL_main

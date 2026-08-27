@@ -45,7 +45,7 @@ jobs:
             src: app/build/bin/macosArm64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-macos-arm64.kexe
           - name: macOS (x64)
-            os: macos-13
+            os: macos-14
             task: linkReleaseExecutableMacosX64
             src: app/build/bin/macosX64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-macos-x64.kexe
