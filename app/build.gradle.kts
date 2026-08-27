@@ -38,15 +38,21 @@ fun konanAndroidLibDir(abi: String): String? {
         ?: emptyList()
     val roots = (listOf(toolchain) + sysroots).distinct()
     for (root in roots) {
-        val candidates = listOf(
-            File(root, "sysroot/usr/lib/$triple"),
-            File(root, "android-$arch"),
-        )
-        for (base in candidates) {
-            if (!base.isDirectory) continue
-            val hit = base.walkTopDown().firstOrNull { it.name == "libaaudio.so" }
+        // toolchain sysroot layout: <root>/sysroot/usr/lib/<triple>/<api>/
+        val toolchainBase = File(root, "sysroot/usr/lib/$triple")
+        if (toolchainBase.isDirectory) {
+            val hit = toolchainBase.walkTopDown().firstOrNull { it.name == "libaaudio.so" }
             if (hit != null) return hit.parentFile.absolutePath
         }
+        // NDK sysroot layout: <root>/android-<api>/arch-<arch>/usr/lib/
+        val anyArch = root.listFiles()
+            ?.filter { it.isDirectory && it.name.matches(Regex("android-\\d+")) }
+            ?.map { File(it, "arch-$arch") }
+            ?.filter { it.isDirectory }
+            ?.firstNotNullOfOrNull { dir ->
+                dir.walkTopDown().firstOrNull { it.name == "libaaudio.so" }?.parentFile
+            }
+        if (anyArch != null) return anyArch.absolutePath
     }
     return null
 }
