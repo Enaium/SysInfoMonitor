@@ -20,14 +20,22 @@ fun konanAndroidLibDir(abi: String): String? {
         else -> return null
     }
     // The per-ABI NDK stub libraries (libEGL, libGLESv2, libaaudio, ...)
-    // live under an API-level subdirectory (e.g. `26`) that differs
-    // across toolchain versions/layouts, so scan for the directory that
-    // actually contains libaaudio.so instead of assuming a fixed path.
-    val abiLib = File(toolchain, "sysroot/usr/lib/$triple")
-    val candidate = abiLib.listFiles()
-        ?.filter { it.isDirectory && File(it, "libaaudio.so").exists() }
-        ?.maxByOrNull { it.name.toIntOrNull() ?: 0 }
-    return candidate?.absolutePath
+    // live under an API-level subdirectory that differs across toolchain
+    // versions/layouts, so locate libaaudio.so for this triple instead of
+    // assuming a fixed path. Checks the toolchain's own sysroot first,
+    // then any separate target-sysroot-* directory, recursing to find the
+    // containing directory regardless of layout.
+    val sysroots = File(konanData, "dependencies").listFiles()
+        ?.filter { it.isDirectory && it.name.matches(Regex("target-sysroot-.*android_ndk")) }
+        ?: emptyList()
+    val roots = (listOf(toolchain) + sysroots).distinct()
+    for (root in roots) {
+        val base = File(root, "sysroot/usr/lib/$triple")
+        if (!base.isDirectory) continue
+        val hit = base.walkTopDown().firstOrNull { it.name == "libaaudio.so" }
+        if (hit != null) return hit.parentFile.absolutePath
+    }
+    return null
 }
 
 plugins {
