@@ -26,6 +26,10 @@ fun konanAndroidLibDir(abi: String): String? {
         "x86" -> "i686-linux-android"
         else -> return null
     }
+    // The konan NDK toolchain/sysroot layout varies across hosts and
+    // versions (sysroot/usr/lib/<triple>/<api>/, android-<api>/arch-<arch>/,
+    // etc.), so fall back to a full recursive search of the konan
+    // dependencies tree for libaaudio.so whose path marks this ABI.
     val arch = when (abi) {
         "arm64-v8a" -> "arm64"
         "armeabi-v7a" -> "arm"
@@ -33,28 +37,14 @@ fun konanAndroidLibDir(abi: String): String? {
         "x86" -> "x86"
         else -> return null
     }
-    val sysroots = File(konanData, "dependencies").listFiles()
-        ?.filter { it.isDirectory && it.name.matches(Regex("target-sysroot-.*android_ndk")) }
-        ?: emptyList()
-    val roots = (listOf(toolchain) + sysroots).distinct()
-    for (root in roots) {
-        // toolchain sysroot layout: <root>/sysroot/usr/lib/<triple>/<api>/
-        val toolchainBase = File(root, "sysroot/usr/lib/$triple")
-        if (toolchainBase.isDirectory) {
-            val hit = toolchainBase.walkTopDown().firstOrNull { it.name == "libaaudio.so" }
-            if (hit != null) return hit.parentFile.absolutePath
+    val depsDir = File(konanData, "dependencies")
+    if (!depsDir.isDirectory) return null
+    val markers = listOf(triple, "arch-$arch", "-$arch-", "/$arch/")
+    val hit = depsDir.walkTopDown()
+        .firstOrNull { f ->
+            f.name == "libaaudio.so" && markers.any { f.path.contains(it) }
         }
-        // NDK sysroot layout: <root>/android-<api>/arch-<arch>/usr/lib/
-        val anyArch = root.listFiles()
-            ?.filter { it.isDirectory && it.name.matches(Regex("android-\\d+")) }
-            ?.map { File(it, "arch-$arch") }
-            ?.filter { it.isDirectory }
-            ?.firstNotNullOfOrNull { dir ->
-                dir.walkTopDown().firstOrNull { it.name == "libaaudio.so" }?.parentFile
-            }
-        if (anyArch != null) return anyArch.absolutePath
-    }
-    return null
+    return hit?.parentFile?.absolutePath
 }
 
 plugins {
