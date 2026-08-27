@@ -42,27 +42,27 @@ jobs:
           - name: macOS (arm64)
             os: macos-14
             task: linkReleaseExecutableMacosArm64
-            src: app/build/bin/macosArm64/releaseExecutable/SysInfoMonitor.kexe
+            src: app/build/bin/macosArm64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-macos-arm64.kexe
           - name: macOS (x64)
             os: macos-13
             task: linkReleaseExecutableMacosX64
-            src: app/build/bin/macosX64/releaseExecutable/SysInfoMonitor.kexe
+            src: app/build/bin/macosX64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-macos-x64.kexe
           - name: Linux (arm64)
             os: ubuntu-24.04
             task: linkReleaseExecutableLinuxArm64
-            src: app/build/bin/linuxArm64/releaseExecutable/SysInfoMonitor.kexe
+            src: app/build/bin/linuxArm64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-linux-arm64.kexe
           - name: Linux (x64)
             os: ubuntu-24.04
             task: linkReleaseExecutableLinuxX64
-            src: app/build/bin/linuxX64/releaseExecutable/SysInfoMonitor.kexe
+            src: app/build/bin/linuxX64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-linux-x64.kexe
           - name: Windows (x64)
             os: windows-latest
             task: linkReleaseExecutableMingwX64
-            src: app/build/bin/mingwX64/releaseExecutable/SysInfoMonitor.exe
+            src: app/build/bin/mingwX64/releaseExecutable/app.exe
             asset: SysInfoMonitor-windows-x64.exe
     steps:
       - uses: actions/checkout@v4
