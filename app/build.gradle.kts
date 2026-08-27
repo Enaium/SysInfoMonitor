@@ -39,7 +39,11 @@ fun konanAndroidLibDir(abi: String): String? {
     }
     val depsDir = File(konanData, "dependencies")
     if (!depsDir.isDirectory) return null
-    val markers = listOf(triple, "arch-$arch", "-$arch-", "/$arch/")
+    // Boundary-precise markers: the exact triple (i686-linux-android vs
+    // x86_64-linux-android, arm-linux-androideabi vs aarch64-...) and the
+    // NDK arch dir with a trailing slash (/arch-x86/ so it cannot match
+    // arch-x86_64). Substring markers would pick the wrong ABI's lib.
+    val markers = listOf(triple, "/arch-$arch/", "/$arch/usr/")
     val hit = depsDir.walkTopDown()
         .firstOrNull { f ->
             f.name == "libaaudio.so" && markers.any { f.path.contains(it) }
