@@ -12,6 +12,13 @@ fun konanAndroidLibDir(abi: String): String? {
     val toolchain = File(konanData, "dependencies").listFiles()
         ?.firstOrNull { it.isDirectory && it.name.matches(Regex("target-toolchain-.*-android_ndk")) }
         ?: return null
+    // The per-ABI NDK stub libraries (libEGL, libGLESv2, libaaudio, ...)
+    // live under an API-level subdirectory that differs across toolchain
+    // versions/layouts, so locate libaaudio.so for this triple instead of
+    // assuming a fixed path. Two layouts occur in the wild:
+    //   - toolchain sysroot:  <root>/sysroot/usr/lib/<triple>/<api>/
+    //   - NDK sysroot:        <root>/android-<api>/arch-<arch>/usr/lib/
+    // Search both, recursing for libaaudio.so.
     val triple = when (abi) {
         "arm64-v8a" -> "aarch64-linux-android"
         "armeabi-v7a" -> "arm-linux-androideabi"
@@ -19,21 +26,27 @@ fun konanAndroidLibDir(abi: String): String? {
         "x86" -> "i686-linux-android"
         else -> return null
     }
-    // The per-ABI NDK stub libraries (libEGL, libGLESv2, libaaudio, ...)
-    // live under an API-level subdirectory that differs across toolchain
-    // versions/layouts, so locate libaaudio.so for this triple instead of
-    // assuming a fixed path. Checks the toolchain's own sysroot first,
-    // then any separate target-sysroot-* directory, recursing to find the
-    // containing directory regardless of layout.
+    val arch = when (abi) {
+        "arm64-v8a" -> "arm64"
+        "armeabi-v7a" -> "arm"
+        "x86_64" -> "x86_64"
+        "x86" -> "x86"
+        else -> return null
+    }
     val sysroots = File(konanData, "dependencies").listFiles()
         ?.filter { it.isDirectory && it.name.matches(Regex("target-sysroot-.*android_ndk")) }
         ?: emptyList()
     val roots = (listOf(toolchain) + sysroots).distinct()
     for (root in roots) {
-        val base = File(root, "sysroot/usr/lib/$triple")
-        if (!base.isDirectory) continue
-        val hit = base.walkTopDown().firstOrNull { it.name == "libaaudio.so" }
-        if (hit != null) return hit.parentFile.absolutePath
+        val candidates = listOf(
+            File(root, "sysroot/usr/lib/$triple"),
+            File(root, "android-$arch"),
+        )
+        for (base in candidates) {
+            if (!base.isDirectory) continue
+            val hit = base.walkTopDown().firstOrNull { it.name == "libaaudio.so" }
+            if (hit != null) return hit.parentFile.absolutePath
+        }
     }
     return null
 }
