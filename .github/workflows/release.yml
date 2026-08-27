@@ -91,6 +91,14 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Download Kotlin/Native Android toolchain
+        shell: bash
+        # The first native invocation downloads the K/N Android toolchain
+        # into ~/.konan. konanAndroidLibDir() in app/build.gradle.kts
+        # resolves the sysroot -L path at configuration time, so the
+        # toolchain must exist before the APK build configures. Compile
+        # (not link) to avoid the -laudio link error on this warm-up run.
+        run: ./gradlew --no-daemon --stacktrace :app:compileKotlinAndroidNativeArm32
       - name: Build release APK
         shell: bash
         run: ./gradlew --no-daemon --stacktrace :android:assembleRelease
