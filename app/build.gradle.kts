@@ -51,6 +51,64 @@ fun konanAndroidLibDir(abi: String): String? {
     return hit?.parentFile?.absolutePath
 }
 
+// Locate the LLVM clang bundled with the Kotlin/Native toolchain (used to
+// cross-compile src/linuxArm64Main/c/atomic_helpers.c to an aarch64 object).
+// The toolchain is only downloaded by the first native compile/link task, so
+// this must be called at task execution time, not configuration time.
+fun konanClang(): File? {
+    val konanData = System.getenv("KONAN_DATA_DIR")
+        ?: "${System.getProperty("user.home")}/.konan"
+    val depsDir = File(konanData, "dependencies")
+    if (!depsDir.isDirectory) return null
+    return depsDir.listFiles()
+        ?.filter { it.isDirectory && it.name.startsWith("llvm-") }
+        ?.map { File(it, "bin/clang") }
+        ?.filter { it.exists() }
+        ?.maxByOrNull { it.name }
+}
+
+// The sdl-kmp linuxArm64 SDL3 static library is built with GCC and
+// references the aarch64 libgcc outline-atomic helpers (__aarch64_cas4_sync,
+// __aarch64_ldadd4_sync, ...) that ship only in GCC 9+'s libgcc; the GCC 8.3
+// sysroot bundled with Kotlin/Native predates them. We compile our own
+// freestanding implementations (src/linuxArm64Main/c/atomic_helpers.c) with
+// the K/N-bundled clang and link the object into the linuxArm64 executable.
+// The object path is fixed at configuration time, so the link task simply
+// depends on the compile task; clang itself is resolved at execution time
+// (the toolchain is downloaded by an earlier compile/link task in CI).
+val linuxArm64AtomicHelpersObj = layout.buildDirectory.file("generated/linuxArm64AtomicHelpers/atomic_helpers.o")
+val linuxArm64AtomicHelpersSrc = file("src/linuxArm64Main/c/atomic_helpers.c")
+val compileLinuxArm64AtomicHelpers = tasks.register("compileLinuxArm64AtomicHelpers") {
+    inputs.file(linuxArm64AtomicHelpersSrc)
+    outputs.file(linuxArm64AtomicHelpersObj)
+    // clang appears only after the K/N compiler has bootstrapped its
+    // toolchain; piggyback on the compile task that must already have run.
+    dependsOn("compileKotlinLinuxArm64")
+    doLast {
+        val clang = konanClang() ?: error(
+            "Cannot locate the Kotlin/Native LLVM clang under ~/.konan/dependencies. " +
+            "Run a native compile first so the toolchain is downloaded."
+        )
+        val out = providers.exec {
+            commandLine(
+                clang.absolutePath,
+                "--target=aarch64-unknown-linux-gnu",
+                "-march=armv8-a",
+                "-mno-outline-atomics",
+                "-ffreestanding",
+                "-O2",
+                "-c",
+                linuxArm64AtomicHelpersSrc.absolutePath,
+                "-o",
+                linuxArm64AtomicHelpersObj.get().asFile.absolutePath,
+            )
+        }.result.get()
+        if (out.exitValue != 0) {
+            throw GradleException("clang failed (exit ${out.exitValue})")
+        }
+    }
+}
+
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
 }
@@ -78,7 +136,14 @@ kotlin {
     }
 
     linuxArm64 {
-        binaries.executable()
+        binaries.executable {
+            // sdl-kmp's SDL3 static library for linuxArm64 was built with
+            // GCC and references aarch64 libgcc outline-atomic helpers that
+            // K/N's GCC 8.3 sysroot does not provide; supply our own
+            // implementations (see compileLinuxArm64AtomicHelpers above).
+            linkerOpts(linuxArm64AtomicHelpersObj.get().asFile.absolutePath)
+            linkTaskProvider.configure { dependsOn(compileLinuxArm64AtomicHelpers) }
+        }
     }
 
     mingwX64 {
