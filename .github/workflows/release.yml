@@ -54,8 +54,10 @@ jobs:
             task: linkReleaseExecutableLinuxX64
             src: app/build/bin/linuxX64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-linux-x64.kexe
+          # Kotlin/Native has no linux-aarch64 host support, so the
+          # arm64 executable is cross-compiled from the x86_64 runner.
           - name: Linux (arm64)
-            os: ubuntu-24.04-arm
+            os: ubuntu-24.04
             task: linkReleaseExecutableLinuxArm64
             src: app/build/bin/linuxArm64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-linux-arm64.kexe
