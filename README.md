@@ -11,7 +11,7 @@ The application pulls system data from the [sysinfo] Rust crate (via
 
 | | |
 | --- | --- |
-| Targets | JVM (Linux / macOS / Windows desktop), Kotlin/Native (Linux x64, macOS arm64/x64, mingw x64, Android NDK), `androidNativeArm64/Arm32/X64/X86` |
+| Targets | JVM (Linux / macOS / Windows desktop), Kotlin/Native (Linux x64/arm64, macOS arm64/x64, mingw x64, Android NDK), `androidNativeArm64/Arm32/X64/X86` |
 | UI | 9 tabs: Overview, CPU, Memory, Processes, Disks, Network, Sensors, Users, System |
 | Plots | Time-series charts for CPU / memory / swap, per-core usage bars, network + disk throughput, sensor temperatures |
 | Backend | SDL 2D renderer with vsync; auto-falls back to SDL's `dummy` video driver when no display is available (headless CI, SSH) |
@@ -89,7 +89,7 @@ beyond a JDK and the Gradle wrapper.
 ./gradlew :jvmRun
 
 # Build a self-contained native binary
-./gradlew :linkDebugExecutableLinuxX64
+./gradlew :linkDebugExecutableLinuxX64        # or LinuxArm64 on an arm64 host
 ./build/bin/linuxX64/debugExecutable/SysInfoMonitor.kexe
 ```
 
@@ -120,7 +120,8 @@ main thread; the Gradle script already adds this when the host is macOS.
 ### Native (Linux)
 
 ```bash
-./gradlew :linkDebugExecutableLinuxX64
+./gradlew :linkDebugExecutableLinuxX64        # x86_64 host
+./gradlew :linkDebugExecutableLinuxArm64      # arm64 host
 SDL_VIDEO_DRIVER=dummy IMGUI_KMP_FRAMES=30 \
     ./build/bin/linuxX64/debugExecutable/SysInfoMonitor.kexe
 ```
@@ -204,7 +205,7 @@ title bar.
 | --- | --- | --- |
 | [sysinfo-kmp] | `cn.enaium:sysinfo-kmp` | 1.0.1 |
 | [sdl-kmp]     | `cn.enaium.sdl:sdl-kmp`     | 1.0.9 |
-| [imgui-kmp]   | `cn.enaium.imgui:imgui-kmp` | 1.0.1 |
+| [imgui-kmp]   | `cn.enaium.imgui:imgui-kmp` | 1.0.5 |
 
 The JVM target also pulls in per-OS JNI artifacts (`sysinfo-kmp-jni-jvm-linux-x86_64`,
 `sdl-kmp-jni-jvm-linux-x86_64`, `imgui-kmp-jni-jvm-linux-x86_64`) so the

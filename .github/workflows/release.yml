@@ -54,6 +54,11 @@ jobs:
             task: linkReleaseExecutableLinuxX64
             src: app/build/bin/linuxX64/releaseExecutable/app.kexe
             asset: SysInfoMonitor-linux-x64.kexe
+          - name: Linux (arm64)
+            os: ubuntu-24.04-arm
+            task: linkReleaseExecutableLinuxArm64
+            src: app/build/bin/linuxArm64/releaseExecutable/app.kexe
+            asset: SysInfoMonitor-linux-arm64.kexe
           - name: Windows (x64)
             os: windows-latest
             task: linkReleaseExecutableMingwX64

@@ -2,7 +2,7 @@
 kotlin = "2.4.10"
 sysinfo-kmp = "1.0.1"
 sdl-kmp = "1.0.9"
-imgui-kmp = "1.0.3"
+imgui-kmp = "1.0.5"
 agp = "9.3.2"
 
 [libraries]

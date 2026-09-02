@@ -77,6 +77,10 @@ kotlin {
         binaries.executable()
     }
 
+    linuxArm64 {
+        binaries.executable()
+    }
+
     mingwX64 {
         binaries.executable {
             // sdl-kmp's hidapi backend references HidD_*/HidP_* symbols on
@@ -142,7 +146,7 @@ kotlin {
             dependsOn(getByName("commonMain"))
         }
         listOf(
-            "macosArm64", "macosX64", "linuxX64", "mingwX64",
+            "macosArm64", "macosX64", "linuxX64", "linuxArm64", "mingwX64",
         ).forEach { name ->
             getByName("${name}Main").dependsOn(nativeMain)
         }
