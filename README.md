@@ -207,9 +207,9 @@ title bar.
 | [sdl-kmp]     | `cn.enaium.sdl:sdl-kmp`     | 1.0.9 |
 | [imgui-kmp]   | `cn.enaium.imgui:imgui-kmp` | 1.0.5 |
 
-The JVM target also pulls in per-OS JNI artifacts (`sysinfo-kmp-jni-jvm-linux-x86_64`,
-`sdl-kmp-jni-jvm-linux-x86_64`, `imgui-kmp-jni-jvm-linux-x86_64`) so the
-matching native shared libraries are on the classpath at runtime.
+The JVM natives need no explicit imports: each `-kmp` library's `-jvm`
+artifact depends on every platform's `*-jni-jvm-*` sibling, and its
+NativeLoader extracts the one matching the host OS/arch at runtime.
 
 ## License
 

@@ -7,11 +7,8 @@ agp = "9.3.2"
 
 [libraries]
 sysinfo-kmp = { module = "cn.enaium:sysinfo-kmp", version.ref = "sysinfo-kmp" }
-sysinfo-kmp-jni-jvm = { module = "cn.enaium:sysinfo-kmp-jni-jvm-linux-x86_64", version.ref = "sysinfo-kmp" }
 sdl-kmp = { module = "cn.enaium.sdl:sdl-kmp", version.ref = "sdl-kmp" }
-sdl-kmp-jni-jvm = { module = "cn.enaium.sdl:sdl-kmp-jni-jvm-linux-x86_64", version.ref = "sdl-kmp" }
 imgui-kmp = { module = "cn.enaium.imgui:imgui-kmp", version.ref = "imgui-kmp" }
-imgui-kmp-jni-jvm = { module = "cn.enaium.imgui:imgui-kmp-jni-jvm-linux-x86_64", version.ref = "imgui-kmp" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 
 [plugins]

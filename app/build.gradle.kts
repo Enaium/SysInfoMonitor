@@ -228,21 +228,15 @@ kotlin {
                 // snapshot. sdl-kmp + imgui-kmp give us the windowing,
                 // the imgui bindings, and the SDL renderer/gpu/platform
                 // backends.
+                //
+                // The JVM natives come in transitively: each -kmp
+                // library's -jvm artifact depends on every platform's
+                // jni-jvm-* sibling, and its NativeLoader extracts the one
+                // matching the host OS/arch at runtime. No explicit
+                // runtimeOnly dependency needed here.
                 implementation(libs.sysinfo.kmp)
                 implementation(libs.sdl.kmp)
                 implementation(libs.imgui.kmp)
-            }
-        }
-        // The JVM target needs the matching host JNI .so/.dylib on the
-        // classpath: imgui-kmp, sysinfo-kmp and sdl-kmp each have a
-        // NativeLoader that extracts the artifact from the classpath at
-        // runtime. The linux-x86_64 variants are the right pair for a
-        // Linux x64 host.
-        jvmMain {
-            dependencies {
-                runtimeOnly(libs.sysinfo.kmp.jni.jvm)
-                runtimeOnly(libs.sdl.kmp.jni.jvm)
-                runtimeOnly(libs.imgui.kmp.jni.jvm)
             }
         }
     }
