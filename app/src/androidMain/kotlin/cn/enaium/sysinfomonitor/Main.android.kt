@@ -16,10 +16,11 @@ import platform.posix.getenv
 /**
  * SDL3 Android entry point.
  *
- * `SDLActivity` (from the SDL3 Android archive) loads `libmain.so` and
- * calls the exported `SDL_main` symbol on a dedicated SDL thread. SDL
- * itself was already initialized by the Java activity, so we just run
- * the same [runSystemMonitor] used on every other platform.
+ * `SDLActivity` (from the sdl-kmp `sdl-kmp-android-jvm` AAR) loads
+ * `libmain.so` and calls the exported `SDL_main` symbol on a dedicated
+ * SDL thread. SDL itself was already initialized by the Java activity,
+ * so we just run the same [runSystemMonitor] used on every other
+ * platform.
  *
  * The host Java activity sets `SYSINFO_DPI_SCALE` to
  * `Resources.displayMetrics.density` (1.0 = mdpi, 2.0 = xhdpi, 3.0 on a

@@ -28,10 +28,11 @@ val androidAbis = mapOf(
  * `androidNative*` link tasks into AGP's jniLibs directory so the APK
  * ends up with the right native shared library in each ABI split.
  *
- * The vendored SDL3 Android Java glue (`org.libsdl.app.SDLActivity` and
- * friends) lives in [src/main/java]. The C library is statically
- * linked from the sdl-kmp klib, so we don't ship the SDL3 .so files
- * at all — the vendored Java code drives the existing one.
+ * The SDL3 Android Java glue (`org.libsdl.app.SDLActivity` and friends)
+ * comes from the sdl-kmp 1.0.10 `sdl-kmp-android-jvm` AAR. The C
+ * library is statically linked from the sdl-kmp klib, so we don't ship
+ * the AAR's `libsdl_jni.so` at all — we exclude it below and let the
+ * bundled Java code drive our own statically-linked `libmain.so`.
  */
 abstract class PrepareJniLibsTask : DefaultTask() {
 
@@ -71,6 +72,15 @@ prepareJniLibs.configure {
     }
 }
 
+dependencies {
+    // sdl-kmp's android variant resolves to the sdl-kmp-android AAR, which
+    // transitively brings in sdl-kmp-android-jvm with SDL3's Java layer
+    // (SDLActivity and friends). We statically link SDL3 into libmain.so
+    // via the sdl-kmp klib, so the AAR's own libsdl_jni.so is excluded
+    // from the APK (see packaging below).
+    implementation(libs.sdl.kmp)
+}
+
 android {
     namespace = "cn.enaium.sysinfomonitor"
     compileSdk = 36
@@ -95,6 +105,17 @@ android {
     compileOptions {
         sourceCompatibility = org.gradle.api.JavaVersion.VERSION_17
         targetCompatibility = org.gradle.api.JavaVersion.VERSION_17
+    }
+    packaging {
+        jniLibs {
+            // The sdl-kmp-android-jvm AAR ships a per-ABI libsdl_jni.so
+            // (SDL3 + JNI bridge) next to its Java glue. SDL3 is already
+            // statically linked into libmain.so, so shipping it would
+            // duplicate the library and bloat every ABI split by ~3 MB.
+            // jniLibs exclude patterns are relative to the ABI dir, hence
+            // the `**/` prefix.
+            excludes += "**/libsdl_jni.so"
+        }
     }
 }
 

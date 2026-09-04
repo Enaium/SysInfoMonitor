@@ -9,12 +9,12 @@ import org.libsdl.app.SDLActivity
 /**
  * Launcher activity hosting the SDL dashboard.
  *
- * `SDLActivity` (Java, vendored under `org/libsdl/app/` next to this
- * file — copied verbatim from SDL3's `android-project` tree) loads
- * `libmain.so` and calls its exported `SDL_main` symbol on a dedicated
- * SDL thread. `libmain.so` is built by the root module's
- * `androidNative*` link tasks and embeds the dashboard, imgui-kmp,
- * sdl-kmp and sysinfo-kmp together with a statically linked SDL3.
+ * `SDLActivity` (Java, shipped in the sdl-kmp 1.0.10
+ * `sdl-kmp-android-jvm` AAR) loads `libmain.so` and calls its exported
+ * `SDL_main` symbol on a dedicated SDL thread. `libmain.so` is built by
+ * the root module's `androidNative*` link tasks and embeds the
+ * dashboard, imgui-kmp, sdl-kmp and sysinfo-kmp together with a
+ * statically linked SDL3.
  */
 class MainActivity : SDLActivity() {
 
@@ -44,7 +44,7 @@ class MainActivity : SDLActivity() {
             }
         }
         // SDL's setWindowStyle(true) is the cross-version path: the
-        // vendored main-thread handler at SDLActivity.java:1052 applies
+        // bundled main-thread handler at SDLActivity.java:1052 applies
         // SYSTEM_UI_FLAG_FULLSCREEN | HIDE_NAVIGATION | IMMERSIVE_STICKY
         // | LAYOUT_FULLSCREEN | LAYOUT_HIDE_NAVIGATION and adds
         // FLAG_FULLSCREEN on the window. Required for API 24..29.

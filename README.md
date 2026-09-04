@@ -204,7 +204,7 @@ title bar.
 | | Maven coordinate | Version |
 | --- | --- | --- |
 | [sysinfo-kmp] | `cn.enaium:sysinfo-kmp` | 1.0.1 |
-| [sdl-kmp]     | `cn.enaium.sdl:sdl-kmp`     | 1.0.9 |
+| [sdl-kmp]     | `cn.enaium.sdl:sdl-kmp`     | 1.0.10 |
 | [imgui-kmp]   | `cn.enaium.imgui:imgui-kmp` | 1.0.5 |
 
 The JVM natives need no explicit imports: each `-kmp` library's `-jvm`
